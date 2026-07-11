@@ -3,45 +3,44 @@
 // inert file Rust never looks at.
 mod document;
 mod encoding;
+mod heap;
 mod pager;
 
-use document::Document;
-use pager::{Page, Pager};
+use document::{Document, Value};
+use heap::HeapFile;
 
 fn main() {
-    let mut doc = Document::new();
-    doc.insert("name", "Alice");
-    doc.insert("age", 30);
-    doc.insert("active", true);
+    println!("--- Phase 4: heap file ---");
+    let mut heap = HeapFile::open("docdb_heap.db").expect("failed to open heap file");
 
-    println!("Document has {} fields", doc.len());
-    for (key, value) in doc.iter() {
-        println!("  {key}: {value:?}");
-    }
+    let mut small_doc = Document::new();
+    small_doc.insert("name", "Alice");
+    small_doc.insert("age", 30);
+    let small_id = heap.insert(&small_doc).expect("insert failed");
+    println!("Inserted small doc at record {:?}", small_id);
 
-    let bytes = doc.to_bytes();
-    println!("\nEncoded to {} bytes", bytes.len());
+    let big_array: Vec<Value> = (0..1500).map(Value::Int).collect();
+    let mut big_doc = Document::new();
+    big_doc.insert("numbers", big_array);
+    let big_id = heap.insert(&big_doc).expect("insert failed");
+    println!("Inserted large (multi-page) doc at record {:?}", big_id);
 
-    let decoded = Document::from_bytes(&bytes).expect("decode should succeed");
-    println!("Round trip equal? {}", decoded == doc);
+    heap.flush().expect("flush failed");
 
-    // --- Phase 3: actually persist those bytes to disk ---
-    println!("\n--- Writing to disk via the Pager ---");
-    let mut pager = Pager::open("docdb_data.db").expect("failed to open db file");
-    println!("Existing page count on open: {}", pager.page_count());
+    let fetched_small = heap.get(small_id).expect("get failed");
+    let fetched_big = heap.get(big_id).expect("get failed");
+    println!("Small doc round trip OK? {}", fetched_small == small_doc);
+    println!("Large doc round trip OK? {}", fetched_big == big_doc);
 
-    let page_no = pager.allocate_page().expect("failed to allocate page");
-    let mut page = Page::new();
-    // A page is PAGE_SIZE bytes; our encoded document is much smaller,
-    // so it just occupies the front of the page and the rest stays zero.
-    page.as_bytes_mut()[..bytes.len()].copy_from_slice(&bytes);
-    pager.write_page(page_no, &page).expect("failed to write page");
-    pager.flush().expect("failed to flush to disk");
-    println!("Wrote document to page {page_no}, flushed to disk.");
+    heap.delete(small_id).expect("delete failed");
+    println!("Deleted small doc's record.");
 
-    let read_page = pager.read_page(page_no).expect("failed to read page");
-    let read_back = Document::from_bytes(&read_page.as_bytes()[..bytes.len()])
-        .expect("failed to decode page contents");
-    println!("Read back from disk: {read_back:?}");
-    println!("Matches original? {}", read_back == doc);
+    let mut new_doc = Document::new();
+    new_doc.insert("val", "reused-page-check");
+    let new_id = heap.insert(&new_doc).expect("insert failed");
+    println!(
+        "New insert landed at record {:?} (freed page reused: {})",
+        new_id,
+        new_id.0 == small_id.0
+    );
 }
