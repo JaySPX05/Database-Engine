@@ -1,11 +1,13 @@
 // `mod document;` tells Rust "there's a module in document.rs, compile it
 // as part of this crate." Without this line, document.rs would just be an
 // inert file Rust never looks at.
+mod btree;
 mod document;
 mod encoding;
 mod heap;
 mod pager;
 
+use btree::BTree;
 use document::{Document, Value};
 use heap::HeapFile;
 
@@ -43,4 +45,38 @@ fn main() {
         new_id,
         new_id.0 == small_id.0
     );
+
+    println!("\n--- Phase 5: B-Tree index ---");
+    let mut index = BTree::open("docdb_index.db").expect("failed to open index");
+
+    // Index a handful of people by name -> RecordId.
+    let people = [
+        ("carol", 55u64),
+        ("alice", 42u64),
+        ("dave", 7u64),
+        ("bob", 19u64),
+    ];
+    for (name, rid) in people {
+        index.insert(name, heap::RecordId(rid)).expect("index insert failed");
+    }
+    index.flush().expect("flush failed");
+
+    println!("Point lookup 'alice' -> {:?}", index.get("alice").unwrap());
+    println!("Point lookup 'nobody' -> {:?}", index.get("nobody").unwrap());
+
+    println!("Sorted scan of all indexed keys:");
+    for (key, rid) in index.scan_all().unwrap() {
+        println!("  {key} -> {rid:?}");
+    }
+
+    // Prove the index actually restructures under load: insert enough
+    // keys to force real page splits, then confirm every one is still
+    // correctly findable afterward.
+    for i in 0..2000 {
+        index.insert(&format!("bulk{i:05}"), heap::RecordId(i)).unwrap();
+    }
+    let all_found = (0..2000).all(|i| {
+        index.get(&format!("bulk{i:05}")).unwrap() == Some(heap::RecordId(i))
+    });
+    println!("All 2000 bulk-inserted keys correctly findable after splits? {all_found}");
 }

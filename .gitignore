@@ -1,3 +1,4 @@
 /target
 *.db
 docdb_heap.db
+docdb_index.db
