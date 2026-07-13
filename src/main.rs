@@ -2,12 +2,14 @@
 // as part of this crate." Without this line, document.rs would just be an
 // inert file Rust never looks at.
 mod btree;
+mod collection;
 mod document;
 mod encoding;
 mod heap;
 mod pager;
 
 use btree::BTree;
+use collection::Collection;
 use document::{Document, Value};
 use heap::HeapFile;
 
@@ -79,4 +81,42 @@ fn main() {
         index.get(&format!("bulk{i:05}")).unwrap() == Some(heap::RecordId(i))
     });
     println!("All 2000 bulk-inserted keys correctly findable after splits? {all_found}");
+
+    println!("\n--- Phase 6: Collection API ---");
+    let mut people = Collection::open("docdb_people").expect("failed to open collection");
+
+    let mut alice = Document::new();
+    alice.insert("name", "Alice");
+    alice.insert("age", 30);
+    let alice_id = people.insert(alice).expect("insert failed");
+    println!("Inserted Alice with _id = {alice_id}");
+
+    let mut bob = Document::new();
+    bob.insert("name", "Bob");
+    bob.insert("age", 25);
+    let bob_id = people.insert(bob).expect("insert failed");
+    println!("Inserted Bob with _id = {bob_id}");
+
+    people.flush().expect("flush failed");
+
+    let fetched = people.find_by_id(&alice_id).expect("find failed");
+    println!("find_by_id(alice) -> {fetched:?}");
+
+    let mut updated_alice = Document::new();
+    updated_alice.insert("name", "Alice");
+    updated_alice.insert("age", 31); // had a birthday
+    people.update_by_id(&alice_id, updated_alice).expect("update failed");
+    let after_update = people.find_by_id(&alice_id).unwrap().unwrap();
+    println!("After update, Alice's age = {:?}", after_update.get("age"));
+
+    println!("All people in the collection:");
+    for doc in people.all().unwrap() {
+        println!("  {doc:?}");
+    }
+
+    people.delete_by_id(&bob_id).expect("delete failed");
+    println!(
+        "Deleted Bob. find_by_id(bob) now returns: {:?}",
+        people.find_by_id(&bob_id).unwrap()
+    );
 }

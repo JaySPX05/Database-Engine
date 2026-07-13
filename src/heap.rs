@@ -135,6 +135,21 @@ impl HeapFile {
         self.pager.flush()
     }
 
+    /// Read-and-increment a counter stored in this heap's metadata page
+    /// (at byte offset 8, right after the free-list head at offset 0).
+    /// Collections use this to mint unique `_id` values without needing
+    /// a separate file or an external UUID crate.
+    pub fn next_counter_value(&mut self) -> io::Result<u64> {
+        let meta = self.pager.read_page(METADATA_PAGE)?;
+        let current = read_u64(meta.as_bytes(), 8);
+
+        let mut updated = meta.clone();
+        write_u64(updated.as_bytes_mut(), 8, current + 1);
+        self.pager.write_page(METADATA_PAGE, &updated)?;
+
+        Ok(current)
+    }
+
     /// Get a page to write into: pop one off the free list if available,
     /// otherwise ask the Pager to grow the file with a fresh page.
     fn allocate_page(&mut self) -> io::Result<u64> {

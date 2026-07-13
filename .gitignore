@@ -2,3 +2,5 @@
 *.db
 docdb_heap.db
 docdb_index.db
+docdb_people.heap.db
+docdb_people.index.db
