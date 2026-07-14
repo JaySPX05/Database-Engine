@@ -6,6 +6,7 @@
 use crate::btree::BTree;
 use crate::document::{Document, Value};
 use crate::heap::HeapFile;
+use crate::query;
 use std::io;
 use std::path::{Path, PathBuf};
 
@@ -95,6 +96,14 @@ impl Collection {
             docs.push(self.heap.get(record_id)?);
         }
         Ok(docs)
+    }
+
+    /// Every document matching `query` (MongoDB-style filter document —
+    /// see the `query` module). This scans every document via `all()`
+    /// and filters in memory; only `_id` lookups are index-accelerated
+    /// right now.
+    pub fn find(&mut self, filter: &Document) -> io::Result<Vec<Document>> {
+        Ok(self.all()?.into_iter().filter(|doc| query::matches(doc, filter)).collect())
     }
 
     pub fn flush(&mut self) -> io::Result<()> {

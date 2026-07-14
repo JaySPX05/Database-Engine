@@ -165,9 +165,15 @@ impl HeapFile {
         let freed_page = self.pager.read_page(free_head)?;
         let next_free = read_u64(freed_page.as_bytes(), 0);
 
-        let mut meta = Page::new();
-        write_u64(meta.as_bytes_mut(), 0, next_free);
-        self.pager.write_page(METADATA_PAGE, &meta)?;
+        // IMPORTANT: clone the existing metadata page and edit only the
+        // free-list-head bytes (0..8). The metadata page also holds the
+        // id counter at bytes 8..16 (see `next_counter_value`) — writing
+        // a brand-new `Page::new()` here would silently zero that
+        // counter out every time a page got reused, which is exactly
+        // the kind of bug that's invisible until IDs start colliding.
+        let mut updated_meta = meta.clone();
+        write_u64(updated_meta.as_bytes_mut(), 0, next_free);
+        self.pager.write_page(METADATA_PAGE, &updated_meta)?;
 
         Ok(free_head)
     }
@@ -179,13 +185,17 @@ impl HeapFile {
         let meta = self.pager.read_page(METADATA_PAGE)?;
         let old_head = read_u64(meta.as_bytes(), 0);
 
+        // The page being freed is fine to overwrite entirely — only its
+        // first 8 bytes (the free-list "next" pointer) matter from now on.
         let mut freed = Page::new();
         write_u64(freed.as_bytes_mut(), 0, old_head);
         self.pager.write_page(page_no, &freed)?;
 
-        let mut meta = Page::new();
-        write_u64(meta.as_bytes_mut(), 0, page_no);
-        self.pager.write_page(METADATA_PAGE, &meta)?;
+        // But the metadata page itself holds the id counter too — same
+        // clone-and-edit fix as in allocate_page above.
+        let mut updated_meta = meta.clone();
+        write_u64(updated_meta.as_bytes_mut(), 0, page_no);
+        self.pager.write_page(METADATA_PAGE, &updated_meta)?;
 
         Ok(())
     }
@@ -283,6 +293,33 @@ mod tests {
         // rather than the file growing with a brand new page.
         assert_eq!(id_a.0, id_b.0, "expected the freed page to be reused");
         assert_eq!(heap.get(id_b).unwrap(), doc_b);
+
+        fs::remove_file(&path).unwrap();
+    }
+
+    #[test]
+    fn counter_survives_free_list_churn() {
+        // Regression test: allocate_page/free_page used to overwrite the
+        // ENTIRE metadata page with a fresh zeroed Page whenever the free
+        // list was touched, silently wiping out the id counter stored at
+        // byte offset 8. This churns the free list deliberately and
+        // checks the counter keeps counting instead of resetting to 0.
+        let path = temp_path("counter_survives");
+        let _ = fs::remove_file(&path);
+
+        let mut heap = HeapFile::open(&path).unwrap();
+        assert_eq!(heap.next_counter_value().unwrap(), 0);
+        assert_eq!(heap.next_counter_value().unwrap(), 1);
+
+        let mut doc = Document::new();
+        doc.insert("val", "x");
+        let id = heap.insert(&doc).unwrap();
+        heap.delete(id).unwrap(); // exercises free_page
+
+        let id2 = heap.insert(&doc).unwrap(); // exercises allocate_page's reuse branch
+        assert_eq!(id2.0, id.0, "expected the freed page to be reused");
+
+        assert_eq!(heap.next_counter_value().unwrap(), 2, "counter must survive free-list churn");
 
         fs::remove_file(&path).unwrap();
     }

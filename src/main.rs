@@ -7,6 +7,7 @@ mod document;
 mod encoding;
 mod heap;
 mod pager;
+mod query;
 
 use btree::BTree;
 use collection::Collection;
@@ -119,4 +120,44 @@ fn main() {
         "Deleted Bob. find_by_id(bob) now returns: {:?}",
         people.find_by_id(&bob_id).unwrap()
     );
+
+    println!("\n--- Phase 7: query engine ---");
+    let mut carol = Document::new();
+    carol.insert("name", "Carol");
+    carol.insert("age", 45);
+    people.insert(carol).expect("insert failed");
+
+    let mut dave = Document::new();
+    dave.insert("name", "Dave");
+    dave.insert("age", 19);
+    people.insert(dave).expect("insert failed");
+    people.flush().expect("flush failed");
+
+    let mut over_30 = Document::new();
+    over_30.insert("age", query::gt(30));
+    println!("People with age > 30:");
+    for doc in people.find(&over_30).unwrap() {
+        println!("  {:?} (age {:?})", doc.get("name"), doc.get("age"));
+    }
+
+    let mut named_dave = Document::new();
+    named_dave.insert("name", "Dave");
+    println!("People named Dave:");
+    for doc in people.find(&named_dave).unwrap() {
+        println!("  {:?}", doc.get("name"));
+    }
+
+    let mut young_or_carol = Document::new();
+    let mut young = Document::new();
+    young.insert("age", query::lt(20));
+    let mut named_carol = Document::new();
+    named_carol.insert("name", "Carol");
+    young_or_carol.insert(
+        "$or",
+        Value::Array(vec![Value::Document(young), Value::Document(named_carol)]),
+    );
+    println!("People under 20 OR named Carol:");
+    for doc in people.find(&young_or_carol).unwrap() {
+        println!("  {:?} (age {:?})", doc.get("name"), doc.get("age"));
+    }
 }
