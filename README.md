@@ -153,6 +153,10 @@ A few are worth reading even if you don't read the rest of the module:
 
 ## Further reading
 
+[`CLI_GUIDE.md`](./CLI_GUIDE.md) walks through installing Rust, building
+the project, and using the shell on your own machine, step by step — the
+guide to hand yourself (or anyone else) for actually running this thing.
+
 [`ARCHITECTURE.md`](./ARCHITECTURE.md) goes module-by-module into *why*
 things are built the way they are — on-disk formats, the B-Tree split
 algorithm, the WAL recovery protocol, and the tradeoffs behind each
