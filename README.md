@@ -1,4 +1,4 @@
-# docdb
+# Database Engine
 
 A document database, built from scratch in Rust — no storage engine
 crates, no SQL engine, no JSON library. Every layer, from raw bytes on
