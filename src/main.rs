@@ -6,8 +6,10 @@ mod collection;
 mod document;
 mod encoding;
 mod heap;
+mod json;
 mod pager;
 mod query;
+mod repl;
 mod wal;
 
 use btree::BTree;
@@ -16,6 +18,20 @@ use document::{Document, Value};
 use heap::HeapFile;
 
 fn main() {
+    // `cargo run` alone drops you into the interactive shell — the
+    // natural way to actually use the database we've built.
+    // `cargo run -- demo` instead replays the phase-by-phase walkthrough
+    // used throughout development, since it's still a handy way to see
+    // every layer exercised end-to-end in one shot.
+    let args: Vec<String> = std::env::args().collect();
+    if args.get(1).map(String::as_str) == Some("demo") {
+        run_demo();
+    } else {
+        repl::run();
+    }
+}
+
+fn run_demo() {
     println!("--- Phase 4: heap file ---");
     let mut heap = HeapFile::open("docdb_heap.db").expect("failed to open heap file");
 
