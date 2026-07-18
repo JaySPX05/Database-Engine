@@ -68,24 +68,52 @@ impl HeapFile {
             chunks.push(&[]);
         }
 
-        // We need every page's number before we can write the *previous*
-        // page's "next" pointer, so allocate them all up front.
-        let mut page_numbers = Vec::with_capacity(chunks.len());
-        for _ in 0..chunks.len() {
-            page_numbers.push(self.allocate_page()?);
-        }
+        // A document may span several pages; all of them need to become
+        // durable together, or not at all. Without a transaction, a
+        // crash after writing page 1 of a 3-page chain would leave a
+        // dangling, half-written document. `begin_transaction` buffers
+        // every write below until we explicitly commit.
+        self.pager.begin_transaction()?;
 
-        for (i, chunk) in chunks.iter().enumerate() {
-            let next = page_numbers.get(i + 1).copied().unwrap_or(NONE);
-            let mut page = Page::new();
-            let buf = page.as_bytes_mut();
-            write_u64(buf, 0, next);
-            write_u32(buf, 8, chunk.len() as u32);
-            buf[CHAIN_HEADER_SIZE..CHAIN_HEADER_SIZE + chunk.len()].copy_from_slice(chunk);
-            self.pager.write_page(page_numbers[i], &page)?;
-        }
+        // The closure-and-call-it-immediately trick: writing this as a
+        // small closure lets us use `?` freely inside (early-return on
+        // any error) while still guaranteeing we run commit-or-rollback
+        // logic afterward, based on whether it succeeded.
+        let result: io::Result<u64> = (|| {
+            // We need every page's number before we can write the
+            // *previous* page's "next" pointer, so allocate them all
+            // up front.
+            let mut page_numbers = Vec::with_capacity(chunks.len());
+            for _ in 0..chunks.len() {
+                page_numbers.push(self.allocate_page()?);
+            }
 
-        Ok(RecordId(page_numbers[0]))
+            for (i, chunk) in chunks.iter().enumerate() {
+                let next = page_numbers.get(i + 1).copied().unwrap_or(NONE);
+                let mut page = Page::new();
+                let buf = page.as_bytes_mut();
+                write_u64(buf, 0, next);
+                write_u32(buf, 8, chunk.len() as u32);
+                buf[CHAIN_HEADER_SIZE..CHAIN_HEADER_SIZE + chunk.len()].copy_from_slice(chunk);
+                self.pager.write_page(page_numbers[i], &page)?;
+            }
+
+            Ok(page_numbers[0])
+        })();
+
+        match result {
+            Ok(head_page) => {
+                self.pager.commit_transaction()?;
+                Ok(RecordId(head_page))
+            }
+            Err(e) => {
+                // Best-effort rollback: if this also fails (e.g. disk
+                // already gone), we still propagate the original error,
+                // which is the one the caller actually needs to see.
+                let _ = self.pager.rollback_transaction();
+                Err(e)
+            }
+        }
     }
 
     /// Read a document back by its RecordId, walking the page chain and
@@ -118,17 +146,32 @@ impl HeapFile {
     /// Delete a document, returning every page in its chain to the free
     /// list so future inserts can reuse the space.
     pub fn delete(&mut self, id: RecordId) -> io::Result<()> {
-        let mut page_no = id.0;
-        loop {
-            let page = self.pager.read_page(page_no)?;
-            let next = read_u64(page.as_bytes(), 0);
-            self.free_page(page_no)?;
-            if next == NONE {
-                break;
+        // Same reasoning as `insert`: freeing a multi-page chain touches
+        // several pages (each one, plus the shared metadata page) that
+        // need to change together.
+        self.pager.begin_transaction()?;
+
+        let result: io::Result<()> = (|| {
+            let mut page_no = id.0;
+            loop {
+                let page = self.pager.read_page(page_no)?;
+                let next = read_u64(page.as_bytes(), 0);
+                self.free_page(page_no)?;
+                if next == NONE {
+                    break;
+                }
+                page_no = next;
             }
-            page_no = next;
+            Ok(())
+        })();
+
+        match result {
+            Ok(()) => self.pager.commit_transaction(),
+            Err(e) => {
+                let _ = self.pager.rollback_transaction();
+                Err(e)
+            }
         }
-        Ok(())
     }
 
     pub fn flush(&mut self) -> io::Result<()> {

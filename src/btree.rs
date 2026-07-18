@@ -180,21 +180,39 @@ impl BTree {
     /// existing key's RecordId is overwritten, matching how a unique
     /// primary-key index should behave).
     pub fn insert(&mut self, key: &str, rid: RecordId) -> io::Result<()> {
-        if let Some((promoted, new_right)) = self.insert_into(self.root, key, rid.0)? {
-            // The root itself split — grow the tree by adding a new root
-            // above the old one. This is the only way tree height increases.
-            let new_root = Node::Internal { children: vec![self.root, new_right], keys: vec![promoted] };
-            let new_root_no = self.pager.allocate_page()?;
-            let mut page = Page::new();
-            new_root.encode(&mut page);
-            self.pager.write_page(new_root_no, &page)?;
+        // A single logical insert can cascade into several page writes:
+        // a leaf split, then its parent splitting too, possibly all the
+        // way up to a brand-new root. All of those pages need to become
+        // durable together — a tree that's split at the leaf level but
+        // not yet linked into its parent is a broken tree.
+        self.pager.begin_transaction()?;
 
-            self.root = new_root_no;
-            let mut meta = Page::new();
-            write_u64(meta.as_bytes_mut(), 0, self.root);
-            self.pager.write_page(META_PAGE, &meta)?;
+        let result: io::Result<()> = (|| {
+            if let Some((promoted, new_right)) = self.insert_into(self.root, key, rid.0)? {
+                // The root itself split — grow the tree by adding a new
+                // root above the old one. This is the only way tree
+                // height increases.
+                let new_root = Node::Internal { children: vec![self.root, new_right], keys: vec![promoted] };
+                let new_root_no = self.pager.allocate_page()?;
+                let mut page = Page::new();
+                new_root.encode(&mut page);
+                self.pager.write_page(new_root_no, &page)?;
+
+                self.root = new_root_no;
+                let mut meta = Page::new();
+                write_u64(meta.as_bytes_mut(), 0, self.root);
+                self.pager.write_page(META_PAGE, &meta)?;
+            }
+            Ok(())
+        })();
+
+        match result {
+            Ok(()) => self.pager.commit_transaction(),
+            Err(e) => {
+                let _ = self.pager.rollback_transaction();
+                Err(e)
+            }
         }
-        Ok(())
     }
 
     /// Recursively insert into the subtree rooted at `page_no`. Returns

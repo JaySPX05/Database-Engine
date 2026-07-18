@@ -8,6 +8,7 @@ mod encoding;
 mod heap;
 mod pager;
 mod query;
+mod wal;
 
 use btree::BTree;
 use collection::Collection;
@@ -160,4 +161,40 @@ fn main() {
     for doc in people.find(&young_or_carol).unwrap() {
         println!("  {:?} (age {:?})", doc.get("name"), doc.get("age"));
     }
+
+    println!("\n--- Phase 8: write-ahead log / crash recovery ---");
+    demo_crash_recovery();
+}
+
+/// Simulates a crash by writing directly to the WAL (bypassing the main
+/// data file entirely, exactly like a process that died right after the
+/// WAL was fsync'd but before the main file was updated), then opens a
+/// fresh Pager and shows it recovering that write automatically.
+fn demo_crash_recovery() {
+    use pager::{Page, Pager};
+    use wal::Wal;
+
+    let db_path = "docdb_crash_demo.db";
+    let wal_path = format!("{db_path}-wal");
+    let _ = std::fs::remove_file(db_path);
+    let _ = std::fs::remove_file(&wal_path);
+
+    {
+        let mut wal = Wal::open(&wal_path).expect("failed to open wal");
+        let message = b"I survived a simulated crash";
+        let mut page = Page::new();
+        page.as_bytes_mut()[..message.len()].copy_from_slice(message);
+        wal.append_page_frame(2, &page).expect("wal write failed");
+        wal.append_commit_frame().expect("wal commit failed");
+        wal.fsync().expect("wal fsync failed");
+        println!("Wrote a committed frame to the WAL only — the main .db file was never touched.");
+    }
+
+    println!("Opening the database fresh, as if this were a brand-new process after a crash...");
+    let mut pager = Pager::open(db_path).expect("pager open (with recovery) failed");
+    let recovered = pager.read_page(2).expect("failed to read recovered page");
+    let message_len = "I survived a simulated crash".len();
+    let text = std::str::from_utf8(&recovered.as_bytes()[..message_len]).unwrap();
+    println!("Recovered page 2 contents: {text:?}");
+    println!("Recovery worked — the committed write survived even though it never reached the main file before we \"crashed\".");
 }
