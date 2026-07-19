@@ -161,3 +161,7 @@ guide to hand yourself (or anyone else) for actually running this thing.
 things are built the way they are — on-disk formats, the B-Tree split
 algorithm, the WAL recovery protocol, and the tradeoffs behind each
 simplification.
+
+## License
+
+MIT — see [`LICENSE`](./LICENSE). Use it, fork it, learn from it.

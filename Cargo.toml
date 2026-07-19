@@ -2,6 +2,9 @@
 name = "database-engine"
 version = "0.1.0"
 edition = "2021"
+license = "MIT"
+description = "A document database built from scratch in Rust — storage engine, B+Tree index, WAL, query language, and REPL."
+repository = "https://github.com/JaySPX05/Database-Engine"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
