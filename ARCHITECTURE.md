@@ -1,6 +1,6 @@
 # Architecture
 
-A module-by-module walkthrough of how `docdb` works and why it's built
+A module-by-module walkthrough of how the Database Engine works and why it's built
 this way. Each section maps to one file in `src/` and assumes you've read
 the previous ones — the layers build on each other in this exact order.
 

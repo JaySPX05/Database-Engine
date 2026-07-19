@@ -1,5 +1,5 @@
-//! An interactive command shell for docdb, so the database can be driven
-//! from a terminal instead of editing main.rs and recompiling.
+//! An interactive command shell for the Database Engine, so it can be
+//! driven from a terminal instead of editing main.rs and recompiling.
 //!
 //! Commands:
 //!   use <name>              switch to (creating if needed) a collection
@@ -18,7 +18,7 @@ use std::collections::HashMap;
 use std::io::{self, BufRead, Write};
 
 pub fn run() {
-    println!("docdb interactive shell. Type 'help' for commands, 'exit' to quit.");
+    println!("Database Engine interactive shell. Type 'help' for commands, 'exit' to quit.");
 
     let mut collections: HashMap<String, Collection> = HashMap::new();
     let mut current: Option<String> = None;

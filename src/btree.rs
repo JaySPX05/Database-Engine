@@ -395,7 +395,7 @@ mod tests {
 
     fn temp_path(name: &str) -> std::path::PathBuf {
         let mut path = std::env::temp_dir();
-        path.push(format!("docdb_btree_test_{name}_{}.db", std::process::id()));
+        path.push(format!("database_engine_btree_test_{name}_{}.db", std::process::id()));
         path
     }
 

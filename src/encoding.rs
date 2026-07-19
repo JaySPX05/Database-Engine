@@ -208,7 +208,7 @@ mod tests {
             Value::Bool(true),
             Value::Int(-42),
             Value::Float(3.14159),
-            Value::Str("hello, docdb".to_string()),
+            Value::Str("hello, database engine".to_string()),
         ] {
             let mut buf = Vec::new();
             value.encode(&mut buf);

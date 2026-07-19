@@ -125,7 +125,7 @@ mod tests {
 
     fn temp_prefix(name: &str) -> PathBuf {
         let mut path = std::env::temp_dir();
-        path.push(format!("docdb_collection_test_{name}_{}", std::process::id()));
+        path.push(format!("database_engine_collection_test_{name}_{}", std::process::id()));
         path
     }
 

@@ -50,7 +50,7 @@ cargo run       # launches the interactive shell
 ### Using the shell
 
 ```
-docdb interactive shell. Type 'help' for commands, 'exit' to quit.
+Database Engine interactive shell. Type 'help' for commands, 'exit' to quit.
 (no collection)> use people
 using collection 'people'
 people> insert {"name": "Alice", "age": 30}

@@ -33,7 +33,7 @@ fn main() {
 
 fn run_demo() {
     println!("--- Phase 4: heap file ---");
-    let mut heap = HeapFile::open("docdb_heap.db").expect("failed to open heap file");
+    let mut heap = HeapFile::open("database_engine_heap.db").expect("failed to open heap file");
 
     let mut small_doc = Document::new();
     small_doc.insert("name", "Alice");
@@ -67,7 +67,7 @@ fn run_demo() {
     );
 
     println!("\n--- Phase 5: B-Tree index ---");
-    let mut index = BTree::open("docdb_index.db").expect("failed to open index");
+    let mut index = BTree::open("database_engine_index.db").expect("failed to open index");
 
     // Index a handful of people by name -> RecordId.
     let people = [
@@ -101,7 +101,7 @@ fn run_demo() {
     println!("All 2000 bulk-inserted keys correctly findable after splits? {all_found}");
 
     println!("\n--- Phase 6: Collection API ---");
-    let mut people = Collection::open("docdb_people").expect("failed to open collection");
+    let mut people = Collection::open("database_engine_people").expect("failed to open collection");
 
     let mut alice = Document::new();
     alice.insert("name", "Alice");
@@ -190,7 +190,7 @@ fn demo_crash_recovery() {
     use pager::{Page, Pager};
     use wal::Wal;
 
-    let db_path = "docdb_crash_demo.db";
+    let db_path = "database_engine_crash_demo.db";
     let wal_path = format!("{db_path}-wal");
     let _ = std::fs::remove_file(db_path);
     let _ = std::fs::remove_file(&wal_path);

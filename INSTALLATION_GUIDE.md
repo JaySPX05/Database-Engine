@@ -1,6 +1,6 @@
 # Installation Guide
 
-How to get `docdb`'s interactive shell running on your own machine —
+How to get the Database Engine's interactive shell running on your own machine —
 from a clean system with nothing installed, to typing commands at the
 prompt.
 
@@ -78,7 +78,7 @@ cargo run --release
 This launches straight into the interactive shell:
 
 ```
-docdb interactive shell. Type 'help' for commands, 'exit' to quit.
+Database Engine interactive shell. Type 'help' for commands, 'exit' to quit.
 (no collection)>
 ```
 
@@ -121,7 +121,7 @@ cargo run --release -- demo
 
 ## 5. (Optional) Install it as a standalone command
 
-If you'd rather type `docdb` from anywhere instead of `cargo run` from
+If you'd rather type `database-engine` from anywhere instead of `cargo run` from
 inside the project folder:
 
 ```bash
@@ -133,14 +133,14 @@ Windows, `%USERPROFILE%\.cargo\bin`) — which `rustup` should already have
 added to your `PATH`. Once installed:
 
 ```bash
-docdb
+database-engine
 ```
 
 works from any directory (documents get saved relative to wherever you
 run it from). To remove it later:
 
 ```bash
-cargo uninstall docdb
+cargo uninstall database-engine
 ```
 
 ## Troubleshooting
@@ -155,7 +155,7 @@ detects this and offers to install them, or get them directly from
 [visualstudio.microsoft.com/visual-cpp-build-tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/)
 (select "Desktop development with C++").
 
-**`docdb` command not found after `cargo install`**
+**`database-engine` command not found after `cargo install`**
 `~/.cargo/bin` isn't on your `PATH`. Add it manually — for bash/zsh, add
 this to `~/.bashrc` or `~/.zshrc`:
 
@@ -168,7 +168,7 @@ then restart your terminal.
 **Permission denied errors when running the shell**
 The database files are created in your current directory — make sure
 you have write permission there, or `cd` somewhere you do (like your
-home directory) before running `docdb`.
+home directory) before running `database-engine`.
 
 **Build fails with an outdated Rust version**
 Run `rustup update` to get the latest stable toolchain, then try
@@ -177,7 +177,7 @@ building again.
 ## Uninstalling everything
 
 ```bash
-cargo uninstall docdb        # if you did Step 5
+cargo uninstall database-engine        # if you did Step 5
 rm -rf ~/.cargo ~/.rustup    # removes Rust itself (macOS/Linux)
 ```
 
